@@ -1,0 +1,65 @@
+name: Check version bump
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  version-check:
+    name: Verify version was bumped
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Fetch main for comparison
+        run: git fetch origin main
+
+      - name: Check version bumps
+        run: |
+          set -e
+
+          CHANGED=$(git diff --name-only origin/main...HEAD)
+          PACKAGES=(airtable crypto cxone flow-control)
+          ANY_SOURCE=false
+          FAILED=false
+
+          for PKG in "${PACKAGES[@]}"; do
+            PKG_CHANGED=$(echo "$CHANGED" | grep "^packages/$PKG/" || true)
+
+            if [ -z "$PKG_CHANGED" ]; then
+              continue
+            fi
+
+            ANY_SOURCE=true
+            echo "[$PKG] Source changes detected:"
+            echo "$PKG_CHANGED"
+            echo ""
+
+            CURRENT=$(jq -r '.version' "packages/$PKG/package.json")
+            MAIN=$(git show origin/main:"packages/$PKG/package.json" | jq -r '.version')
+
+            echo "[$PKG] main:    $MAIN"
+            echo "[$PKG] current: $CURRENT"
+
+            if [ "$CURRENT" = "$MAIN" ]; then
+              echo "::error::[$PKG] Version not bumped. Update packages/$PKG/package.json before merging."
+              FAILED=true
+            else
+              echo "[$PKG] Version bump verified: $MAIN → $CURRENT ✓"
+            fi
+
+            echo ""
+          done
+
+          if [ "$ANY_SOURCE" = "false" ]; then
+            echo "No package source changes detected — version bump not required."
+            exit 0
+          fi
+
+          if [ "$FAILED" = "true" ]; then
+            exit 1
+          fi
+
+          echo "All changed packages have version bumps."

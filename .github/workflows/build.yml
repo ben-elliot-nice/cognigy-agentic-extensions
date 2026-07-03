@@ -1,17 +1,50 @@
 name: Build Extensions
 
 on:
-  push:
-    branches: [main]
   pull_request:
     branches: [main]
 
 jobs:
+  detect:
+    runs-on: ubuntu-latest
+    outputs:
+      packages: ${{ steps.detect.outputs.packages }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Fetch main
+        run: git fetch origin main
+
+      - name: Detect changed packages
+        id: detect
+        run: |
+          CHANGED=$(git diff --name-only origin/main...HEAD)
+          PKGS=()
+          for PKG in airtable crypto cxone flow-control; do
+            if echo "$CHANGED" | grep -q "^packages/$PKG/"; then
+              PKGS+=("$PKG")
+            fi
+          done
+
+          if [ ${#PKGS[@]} -eq 0 ]; then
+            echo "No package changes detected — nothing to build."
+            echo 'packages=[]' >> "$GITHUB_OUTPUT"
+          else
+            JSON=$(printf '%s\n' "${PKGS[@]}" | jq -R . | jq -sc .)
+            echo "Changed packages: $JSON"
+            echo "packages=$JSON" >> "$GITHUB_OUTPUT"
+          fi
+
   build:
+    needs: detect
+    if: needs.detect.outputs.packages != '[]'
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        package: [cxone, airtable, crypto, flow-control]
+        package: ${{ fromJson(needs.detect.outputs.packages) }}
+
     steps:
       - uses: actions/checkout@v4
 
@@ -29,10 +62,3 @@ jobs:
 
       - name: Lint ${{ matrix.package }}
         run: npm run lint --workspace=packages/${{ matrix.package }}
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ matrix.package }}
-          path: packages/${{ matrix.package }}/*.tar.gz
-          if-no-files-found: ignore

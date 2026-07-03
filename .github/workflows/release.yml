@@ -1,0 +1,73 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - '*-v[0-9]*'
+
+jobs:
+  release:
+    # RC tags are created automatically by prerelease.yml — skip them here
+    if: "!contains(github.ref_name, '-rc.')"
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Parse tag
+        id: parse
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+
+          # Tag format: <package>-v<version>, e.g. airtable-v1.2.0
+          PKG=$(echo "$TAG" | sed 's/-v[0-9].*//')
+          VERSION=$(echo "$TAG" | sed "s/${PKG}-v//")
+
+          echo "package=$PKG" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Package: $PKG, Version: $VERSION"
+
+      - name: Validate tag version matches package.json
+        run: |
+          PKG="${{ steps.parse.outputs.package }}"
+          TAG_VERSION="${{ steps.parse.outputs.version }}"
+          PKG_VERSION=$(jq -r '.version' "packages/$PKG/package.json")
+
+          if [ "$TAG_VERSION" != "$PKG_VERSION" ]; then
+            echo "::error::Tag version ($TAG_VERSION) does not match packages/$PKG/package.json ($PKG_VERSION). Update package.json to match the tag before pushing."
+            exit 1
+          fi
+
+          echo "Version validated: $TAG_VERSION ✓"
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build ${{ steps.parse.outputs.package }}
+        run: npm run build --workspace=packages/${{ steps.parse.outputs.package }}
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          PKG="${{ steps.parse.outputs.package }}"
+          VERSION="${{ steps.parse.outputs.version }}"
+          TAG="${GITHUB_REF_NAME}"
+          ASSET="packages/$PKG/${PKG}-${VERSION}.tar.gz"
+
+          if gh release view "$TAG" &>/dev/null; then
+            echo "Release $TAG already exists — skipping"
+          else
+            gh release create "$TAG" \
+              --title "$PKG v$VERSION" \
+              --notes "Production release of $PKG v$VERSION" \
+              "$ASSET"
+          fi

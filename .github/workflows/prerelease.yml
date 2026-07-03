@@ -1,0 +1,101 @@
+name: Pre-release
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  detect:
+    runs-on: ubuntu-latest
+    outputs:
+      packages: ${{ steps.detect.outputs.packages }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Detect changed packages
+        id: detect
+        run: |
+          # Compare HEAD vs HEAD~1; fall back to empty tree on the very first commit
+          if git rev-parse HEAD~1 >/dev/null 2>&1; then
+            CHANGED=$(git diff --name-only HEAD~1 HEAD)
+          else
+            CHANGED=$(git diff --name-only 4b825dc642cb6eb9a060e54bf8d69288fbee4904 HEAD)
+          fi
+
+          PKGS=()
+          for PKG in airtable crypto cxone flow-control; do
+            if echo "$CHANGED" | grep -q "^packages/$PKG/"; then
+              PKGS+=("$PKG")
+            fi
+          done
+
+          if [ ${#PKGS[@]} -eq 0 ]; then
+            echo "No package changes — skipping pre-release."
+            echo 'packages=[]' >> "$GITHUB_OUTPUT"
+          else
+            JSON=$(printf '%s\n' "${PKGS[@]}" | jq -R . | jq -sc .)
+            echo "Changed packages: $JSON"
+            echo "packages=$JSON" >> "$GITHUB_OUTPUT"
+          fi
+
+  prerelease:
+    needs: detect
+    if: needs.detect.outputs.packages != '[]'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    # Serialize to avoid tag-count races when multiple packages change in one push
+    strategy:
+      max-parallel: 1
+      matrix:
+        package: ${{ fromJson(needs.detect.outputs.packages) }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build ${{ matrix.package }}
+        run: npm run build --workspace=packages/${{ matrix.package }}
+
+      - name: Determine pre-release tag
+        id: tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          PKG="${{ matrix.package }}"
+          VERSION=$(jq -r '.version' "packages/$PKG/package.json")
+
+          # Count existing rc tags for this package+version to derive next N
+          git fetch --tags
+          N=$(git tag -l "${PKG}-v${VERSION}-rc.*" | wc -l | tr -d ' ')
+          NEXT=$((N + 1))
+
+          TAG="${PKG}-v${VERSION}-rc.${NEXT}"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Pre-release tag: $TAG"
+
+      - name: Create GitHub pre-release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          PKG="${{ matrix.package }}"
+          TAG="${{ steps.tag.outputs.tag }}"
+          VERSION="${{ steps.tag.outputs.version }}"
+          ASSET="packages/$PKG/${PKG}-${VERSION}.tar.gz"
+
+          gh release create "$TAG" \
+            --title "$TAG" \
+            --notes "Pre-release build of $PKG v$VERSION ($(git rev-parse --short HEAD))" \
+            --prerelease \
+            "$ASSET"
