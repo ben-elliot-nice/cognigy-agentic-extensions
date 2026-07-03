@@ -1,6 +1,6 @@
 {
   "name": "flow-control",
-  "version": "0.0.12",
+  "version": "0.0.13",
   "description": "Flow control and execution nodes for Cognigy.AI — function calls, flow execution, and flow-shaping utilities",
   "main": "build/module.js",
   "scripts": {

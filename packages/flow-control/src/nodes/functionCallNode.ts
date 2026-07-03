@@ -1,5 +1,5 @@
-import { createNodeDescriptor, INodeFunctionBaseParams } from "@cognigy/extension-tools";
 import { IExecuteFlowNodeConfig } from "@cognigy/extension-tools/build/interfaces/executeFlow";
+import { createNodeDescriptor, INodeFunctionBaseParams } from "@cognigy/extension-tools";
 
 export interface ICognigyApiConnection {
 	apiUrl: string;
