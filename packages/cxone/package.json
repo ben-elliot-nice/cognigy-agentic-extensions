@@ -1,6 +1,6 @@
 {
   "name": "cxone",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "CXone integration nodes for Cognigy.AI — authentication, Signal API, Knowledge Hub, scripts, and rich content",
   "main": "build/module.js",
   "scripts": {
@@ -9,7 +9,12 @@
     "build": "npm run transpile && npm run lint && npm run zip",
     "zip": "tar cfz $npm_package_name-$npm_package_version.tar.gz build/* package.json README.md icon.png"
   },
-  "keywords": ["Cognigy.AI", "extensions", "CXone", "NICE"],
+  "keywords": [
+    "Cognigy.AI",
+    "extensions",
+    "CXone",
+    "NICE"
+  ],
   "author": "Ben Elliot <ben.elliot@nice.com>",
   "license": "ISC",
   "dependencies": {

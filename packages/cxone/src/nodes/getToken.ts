@@ -1,5 +1,5 @@
-import { createNodeDescriptor, INodeFunctionBaseParams } from "@cognigy/extension-tools";
 import { ensureCxoneAuth, ICxoneAuthCache } from "../lib/cxoneAuth";
+import { createNodeDescriptor, INodeFunctionBaseParams } from "@cognigy/extension-tools";
 
 export interface IGetTokenParams extends INodeFunctionBaseParams {
 	config: {
