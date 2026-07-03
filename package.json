@@ -1,0 +1,20 @@
+{
+  "name": "cognigy-agentic-extensions",
+  "version": "1.0.0",
+  "description": "Monorepo of Cognigy.AI extensions for agentic workflows",
+  "private": true,
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "npm run build --workspaces",
+    "build:cxone": "npm run build --workspace=packages/cxone",
+    "build:airtable": "npm run build --workspace=packages/airtable",
+    "build:crypto": "npm run build --workspace=packages/crypto",
+    "build:flow-control": "npm run build --workspace=packages/flow-control",
+    "lint": "npm run lint --workspaces",
+    "transpile": "npm run transpile --workspaces"
+  },
+  "author": "Ben Elliot <ben.elliot@nice.com>",
+  "license": "ISC"
+}
