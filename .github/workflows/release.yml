@@ -29,6 +29,21 @@ jobs:
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "Package: $PKG, Version: $VERSION"
 
+      - name: Verify pre-release exists for this version
+        run: |
+          PKG="${{ steps.parse.outputs.package }}"
+          VERSION="${{ steps.parse.outputs.version }}"
+
+          git fetch --tags
+          RC_COUNT=$(git tag -l "${PKG}-v${VERSION}-rc.*" | wc -l | tr -d ' ')
+
+          if [ "$RC_COUNT" -eq 0 ]; then
+            echo "::error::No pre-release found for ${PKG}-v${VERSION}. Merge to main first to generate a pre-release build, then push the production tag."
+            exit 1
+          fi
+
+          echo "Found $RC_COUNT pre-release(s) for ${PKG}-v${VERSION} ✓"
+
       - name: Validate tag version matches package.json
         run: |
           PKG="${{ steps.parse.outputs.package }}"

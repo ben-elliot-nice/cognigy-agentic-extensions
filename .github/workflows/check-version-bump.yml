@@ -13,8 +13,10 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Fetch main for comparison
-        run: git fetch origin main
+      - name: Fetch main and tags
+        run: |
+          git fetch origin main
+          git fetch --tags
 
       - name: Check version bumps
         run: |
@@ -38,23 +40,33 @@ jobs:
             echo ""
 
             CURRENT=$(jq -r '.version' "packages/$PKG/package.json")
-            MAIN=$(git show origin/main:"packages/$PKG/package.json" | jq -r '.version')
 
-            echo "[$PKG] main:    $MAIN"
-            echo "[$PKG] current: $CURRENT"
+            # Gate against the last production release, not main.
+            # This allows multiple PRs to stack at the same version without runaway bumps.
+            LATEST_PROD=$(git tag -l "${PKG}-v[0-9]*" | grep -v '\-rc\.' | sort -V | tail -1 | sed "s/${PKG}-v//")
 
-            if [ "$CURRENT" = "$MAIN" ]; then
-              echo "::error::[$PKG] Version not bumped. Update packages/$PKG/package.json before merging."
+            if [ -z "$LATEST_PROD" ]; then
+              echo "[$PKG] No production release yet — current: $CURRENT ✓"
+              echo ""
+              continue
+            fi
+
+            echo "[$PKG] last prod: v$LATEST_PROD"
+            echo "[$PKG] current:   v$CURRENT"
+
+            HIGHER=$(printf '%s\n%s\n' "$LATEST_PROD" "$CURRENT" | sort -V | tail -1)
+            if [ "$CURRENT" = "$LATEST_PROD" ] || [ "$HIGHER" != "$CURRENT" ]; then
+              echo "::error::[$PKG] v$CURRENT is not greater than the last production release v$LATEST_PROD. Bump package.json to a higher version."
               FAILED=true
             else
-              echo "[$PKG] Version bump verified: $MAIN → $CURRENT ✓"
+              echo "[$PKG] v$CURRENT > v$LATEST_PROD ✓"
             fi
 
             echo ""
           done
 
           if [ "$ANY_SOURCE" = "false" ]; then
-            echo "No package source changes detected — version bump not required."
+            echo "No package source changes detected — version check not required."
             exit 0
           fi
 
@@ -62,4 +74,4 @@ jobs:
             exit 1
           fi
 
-          echo "All changed packages have version bumps."
+          echo "All changed packages are at a version above the last production release."

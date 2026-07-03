@@ -75,8 +75,26 @@ jobs:
           PKG="${{ matrix.package }}"
           VERSION=$(jq -r '.version' "packages/$PKG/package.json")
 
-          # Count existing rc tags for this package+version to derive next N
           git fetch --tags
+
+          # Fail if a production release for this version already exists
+          if git tag -l "${PKG}-v${VERSION}" | grep -q .; then
+            echo "::error::[$PKG] v$VERSION is already a production release. Bump package.json to a higher version before merging."
+            exit 1
+          fi
+
+          # Fail if version is not newer than the latest production release
+          LATEST_PROD=$(git tag -l "${PKG}-v[0-9]*" | grep -v '\-rc\.' | sort -V | tail -1 | sed "s/${PKG}-v//")
+          if [ -n "$LATEST_PROD" ]; then
+            HIGHER=$(printf '%s\n%s\n' "$LATEST_PROD" "$VERSION" | sort -V | tail -1)
+            if [ "$VERSION" = "$LATEST_PROD" ] || [ "$HIGHER" != "$VERSION" ]; then
+              echo "::error::[$PKG] v$VERSION is not newer than the current production release v$LATEST_PROD."
+              exit 1
+            fi
+            echo "[$PKG] v$VERSION > v$LATEST_PROD ✓"
+          fi
+
+          # Count existing rc tags for this package+version to derive next N
           N=$(git tag -l "${PKG}-v${VERSION}-rc.*" | wc -l | tr -d ' ')
           NEXT=$((N + 1))
 
