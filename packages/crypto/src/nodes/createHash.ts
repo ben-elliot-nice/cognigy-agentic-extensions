@@ -1,5 +1,5 @@
 import { createNodeDescriptor, INodeFunctionBaseParams } from "@cognigy/extension-tools";
-import * as crypto from 'crypto';
+import * as crypto from "crypto";
 
 export interface ICreateHash extends INodeFunctionBaseParams {
 	config: {

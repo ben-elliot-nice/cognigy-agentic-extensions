@@ -1,6 +1,6 @@
 {
   "name": "crypto",
-  "version": "5.0.2",
+  "version": "5.0.3",
   "description": "Cryptographic utility nodes for Cognigy.AI — hashing, encryption, decryption, and HMAC",
   "main": "build/module.js",
   "scripts": {
