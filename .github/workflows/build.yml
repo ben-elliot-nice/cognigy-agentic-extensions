@@ -22,7 +22,7 @@ jobs:
         run: |
           CHANGED=$(git diff --name-only origin/main...HEAD)
           PKGS=()
-          for PKG in airtable crypto cxone flow-control; do
+          for PKG in airtable crypto cxone flow-control xapp; do
             if echo "$CHANGED" | grep -q "^packages/$PKG/"; then
               PKGS+=("$PKG")
             fi

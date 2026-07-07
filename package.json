@@ -12,6 +12,7 @@
     "build:airtable": "npm run build --workspace=packages/airtable",
     "build:crypto": "npm run build --workspace=packages/crypto",
     "build:flow-control": "npm run build --workspace=packages/flow-control",
+    "build:xapp": "npm run build --workspace=packages/xapp",
     "lint": "npm run lint --workspaces",
     "transpile": "npm run transpile --workspaces"
   },

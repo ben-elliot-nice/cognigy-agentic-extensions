@@ -1,0 +1,23 @@
+{
+  "name": "xapp",
+  "version": "0.0.1",
+  "description": "xApp event handling nodes for Cognigy.AI — route flow execution based on xApp submit and custom inject events",
+  "main": "build/module.js",
+  "scripts": {
+    "transpile": "tsc -p .",
+    "lint": "tslint -c ../../tslint.json src/**/*.ts",
+    "build": "npm run transpile && npm run lint && npm run zip",
+    "zip": "tar cfz $npm_package_name-$npm_package_version.tar.gz build/* package.json README.md icon.png"
+  },
+  "keywords": ["Cognigy.AI", "extensions", "xapp", "event", "inject"],
+  "author": "Ben Elliot <ben.elliot@nice.com>",
+  "license": "ISC",
+  "dependencies": {
+    "@cognigy/extension-tools": "^0.16.1"
+  },
+  "devDependencies": {
+    "@types/node": "^13.13.15",
+    "tslint": "^6.1.3",
+    "typescript": "^4.8.4"
+  }
+}

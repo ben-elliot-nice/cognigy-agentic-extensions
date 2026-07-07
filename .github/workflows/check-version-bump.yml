@@ -23,7 +23,7 @@ jobs:
           set -e
 
           CHANGED=$(git diff --name-only origin/main...HEAD)
-          PACKAGES=(airtable crypto cxone flow-control)
+          PACKAGES=(airtable crypto cxone flow-control xapp)
           ANY_SOURCE=false
           FAILED=false
 
