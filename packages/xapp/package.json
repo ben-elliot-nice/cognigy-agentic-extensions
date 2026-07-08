@@ -1,6 +1,6 @@
 {
   "name": "xapp",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "xApp event handling nodes for Cognigy.AI — route flow execution based on xApp submit and custom inject events",
   "main": "build/module.js",
   "scripts": {

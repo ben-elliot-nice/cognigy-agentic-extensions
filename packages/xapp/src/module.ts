@@ -1,12 +1,22 @@
 import { createExtension } from "@cognigy/extension-tools";
 
-import { xappEventHandler, xappEventCase, xappEventDefault } from "./nodes/xappEventHandler";
+import {
+	xappSubmitHandler,
+	xappInjectHandler,
+	xappCombinedHandler,
+	xappSubmitCase,
+	xappInjectCase,
+	xappNoEvent,
+} from "./nodes/xappEventHandler";
 
 export default createExtension({
 	nodes: [
-		xappEventHandler,
-		xappEventCase,
-		xappEventDefault,
+		xappSubmitHandler,
+		xappInjectHandler,
+		xappCombinedHandler,
+		xappSubmitCase,
+		xappInjectCase,
+		xappNoEvent,
 	],
 
 	options: {
