@@ -7,7 +7,7 @@
     "transpile": "tsc -p .",
     "lint": "tslint -c ../../tslint.json src/**/*.ts",
     "build": "npm run transpile && npm run lint && npm run zip",
-    "zip": "tar cfz $npm_package_name-$npm_package_version.tar.gz build/* package.json README.md icon.png"
+    "zip": "tar cfz $npm_package_name-$npm_package_version.tar.gz build/* package.json package-lock.json README.md icon.png"
   },
   "keywords": ["Cognigy.AI", "extensions", "xapp", "event", "inject"],
   "author": "Ben Elliot <ben.elliot@nice.com>",
