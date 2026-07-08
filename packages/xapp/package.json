@@ -7,7 +7,8 @@
     "transpile": "tsc -p .",
     "lint": "tslint -c ../../tslint.json src/**/*.ts",
     "build": "npm run transpile && npm run lint && npm run zip",
-    "zip": "tar cfz $npm_package_name-$npm_package_version.tar.gz build/* package.json package-lock.json README.md icon.png"
+    "zip": "tar cfz $npm_package_name-$npm_package_version.tar.gz build/* package.json package-lock.json README.md icon.png",
+    "lockfile": "T=$(mktemp -d) && cp package.json $T/ && npm install --package-lock-only --prefix $T && cp $T/package-lock.json . && rm -rf $T"
   },
   "keywords": ["Cognigy.AI", "extensions", "xapp", "event", "inject"],
   "author": "Ben Elliot <ben.elliot@nice.com>",
