@@ -2,3 +2,5 @@ node_modules/
 packages/*/build/
 packages/*/node_modules/
 packages/*/*.tar.gz
+.DS_Store
+.claude/settings.local.json
