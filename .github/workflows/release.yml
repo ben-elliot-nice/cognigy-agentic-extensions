@@ -69,6 +69,9 @@ jobs:
       - name: Build ${{ steps.parse.outputs.package }}
         run: npm run build --workspace=packages/${{ steps.parse.outputs.package }}
 
+      - name: Verify archive
+        run: scripts/verify-archive.sh ${{ steps.parse.outputs.package }}
+
       - name: Create GitHub release
         env:
           GH_TOKEN: ${{ github.token }}

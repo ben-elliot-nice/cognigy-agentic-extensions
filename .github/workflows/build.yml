@@ -57,8 +57,8 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Transpile ${{ matrix.package }}
-        run: npm run transpile --workspace=packages/${{ matrix.package }}
+      - name: Build ${{ matrix.package }} (transpile, lint, archive)
+        run: npm run build --workspace=packages/${{ matrix.package }}
 
-      - name: Lint ${{ matrix.package }}
-        run: npm run lint --workspace=packages/${{ matrix.package }}
+      - name: Verify archive ${{ matrix.package }}
+        run: scripts/verify-archive.sh ${{ matrix.package }}
