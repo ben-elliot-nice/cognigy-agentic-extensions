@@ -10,6 +10,7 @@ A monorepo of custom [Cognigy.AI](https://www.cognigy.com/) extensions built for
 | [`packages/crypto`](packages/crypto) | Crypto | Hashing, HMAC, and symmetric encryption/decryption |
 | [`packages/cxone`](packages/cxone) | CXone | Interact with the NICE CXone platform APIs |
 | [`packages/flow-control`](packages/flow-control) | Flow Control | Cross-flow function calls with payload routing |
+| [`packages/soap`](packages/soap) | SOAP | Call SOAP/WSDL web services — service discovery, operation calls, raw envelopes |
 
 ---
 
@@ -66,6 +67,18 @@ The called flow receives `input.functionCall.functionName`, `input.functionCall.
 
 ---
 
+### SOAP
+
+Connects to a SOAP/WSDL web service. WSDL parsing and operation invocation are handled by the [`soap`](https://www.npmjs.com/package/soap) library, with a module-level client cache keyed by WSDL URL to avoid re-parsing on every call. Basic Auth and WS-Security (UsernameToken) are both supported from a single connection.
+
+| Node | What it does |
+|---|---|
+| Describe Service | Parse a WSDL and return its services, ports, and operation argument shapes |
+| Call Operation | Invoke a SOAP operation by name with JSON arguments; branches on success / SOAP fault / error |
+| Raw XML Call | POST a hand-built SOAP envelope directly, bypassing WSDL-derived argument mapping; branches on success / error |
+
+---
+
 ## Development
 
 ### Prerequisites
@@ -90,6 +103,7 @@ npm run build:cxone
 npm run build:airtable
 npm run build:crypto
 npm run build:flow-control
+npm run build:soap
 ```
 
 ### CI
