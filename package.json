@@ -13,6 +13,7 @@
     "build:crypto": "npm run build --workspace=packages/crypto",
     "build:flow-control": "npm run build --workspace=packages/flow-control",
     "build:xapp": "npm run build --workspace=packages/xapp",
+    "build:soap": "npm run build --workspace=packages/soap",
     "lint": "npm run lint --workspaces",
     "transpile": "npm run transpile --workspaces"
   },
