@@ -4,6 +4,9 @@ on:
   push:
     branches: [main]
 
+permissions:
+  contents: read
+
 jobs:
   detect:
     runs-on: ubuntu-latest
@@ -16,16 +19,27 @@ jobs:
 
       - name: Detect changed packages
         id: detect
+        env:
+          BEFORE: ${{ github.event.before }}
         run: |
-          # Compare HEAD vs HEAD~1; fall back to empty tree on the very first commit
-          if git rev-parse HEAD~1 >/dev/null 2>&1; then
-            CHANGED=$(git diff --name-only HEAD~1 HEAD)
+          # Diff against the pre-push commit so multi-commit pushes are covered;
+          # fall back to HEAD~1, then the empty tree on the very first commit.
+          EMPTY_TREE=4b825dc642cb6eb9a060e54bf8d69288fbee4904
+          if [ -n "$BEFORE" ] && [ "$BEFORE" != "0000000000000000000000000000000000000000" ] \
+             && git cat-file -e "$BEFORE^{commit}" 2>/dev/null; then
+            BASE="$BEFORE"
+          elif git rev-parse HEAD~1 >/dev/null 2>&1; then
+            BASE=HEAD~1
           else
-            CHANGED=$(git diff --name-only 4b825dc642cb6eb9a060e54bf8d69288fbee4904 HEAD)
+            BASE="$EMPTY_TREE"
           fi
+          echo "Diff base: $BASE"
+          CHANGED=$(git diff --name-only "$BASE" HEAD)
 
           PKGS=()
-          for PKG in airtable crypto cxone flow-control xapp; do
+          for DIR in packages/*/; do
+            PKG=$(basename "$DIR")
+            [ -f "$DIR/package.json" ] || continue
             if echo "$CHANGED" | grep -q "^packages/$PKG/"; then
               PKGS+=("$PKG")
             fi
@@ -58,7 +72,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: "24"
           cache: 'npm'
 
       - name: Install dependencies
@@ -115,8 +129,24 @@ jobs:
           VERSION="${{ steps.tag.outputs.version }}"
           ASSET="packages/$PKG/${PKG}-${VERSION}.tar.gz"
 
-          gh release create "$TAG" \
-            --title "$TAG" \
-            --notes "Pre-release build of $PKG v$VERSION ($(git rev-parse --short HEAD))" \
-            --prerelease \
-            "$ASSET"
+          # Another run (a near-simultaneous merge) can claim the same rc number.
+          # gh fails if a release for the tag already exists, so recompute and retry.
+          for ATTEMPT in 1 2 3 4 5; do
+            if gh release create "$TAG" \
+              --title "$TAG" \
+              --notes "Pre-release build of $PKG v$VERSION ($(git rev-parse --short "$GITHUB_SHA"))" \
+              --target "$GITHUB_SHA" \
+              --prerelease \
+              "$ASSET"; then
+              exit 0
+            fi
+
+            echo "::warning::[$PKG] could not create $TAG (attempt $ATTEMPT) — recomputing rc number"
+            sleep $((ATTEMPT * 3))
+            git fetch --tags --force
+            N=$(git tag -l "${PKG}-v${VERSION}-rc.*" | wc -l | tr -d ' ')
+            TAG="${PKG}-v${VERSION}-rc.$((N + 1))"
+          done
+
+          echo "::error::[$PKG] failed to create a pre-release after 5 attempts"
+          exit 1
