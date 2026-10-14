@@ -5,6 +5,9 @@ on:
     tags:
       - '*-v[0-9]*'
 
+permissions:
+  contents: read
+
 jobs:
   release:
     # RC tags are created automatically by prerelease.yml — skip them here
@@ -15,6 +18,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Parse tag
         id: parse
@@ -44,6 +49,26 @@ jobs:
 
           echo "Found $RC_COUNT pre-release(s) for ${PKG}-v${VERSION} ✓"
 
+      - name: Verify tagged commit is on main and unchanged since the last pre-release
+        run: |
+          PKG="${{ steps.parse.outputs.package }}"
+          VERSION="${{ steps.parse.outputs.version }}"
+
+          git fetch origin main
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
+            echo "::error::Tag ${GITHUB_REF_NAME} points at $GITHUB_SHA, which is not on main. Release from a commit that has been merged to main."
+            exit 1
+          fi
+
+          LATEST_RC=$(git tag -l "${PKG}-v${VERSION}-rc.*" | sort -V | tail -1)
+          if ! git diff --quiet "$LATEST_RC" "$GITHUB_SHA" -- "packages/$PKG"; then
+            echo "::error::packages/$PKG changed between $LATEST_RC and this tag. The release must match the tested pre-release. Merge to main to cut a new rc, then tag again."
+            git diff --stat "$LATEST_RC" "$GITHUB_SHA" -- "packages/$PKG"
+            exit 1
+          fi
+
+          echo "Tag is on main and packages/$PKG matches $LATEST_RC ✓"
+
       - name: Validate tag version matches package.json
         run: |
           PKG="${{ steps.parse.outputs.package }}"
@@ -60,7 +85,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: "24"
           cache: 'npm'
 
       - name: Install dependencies
