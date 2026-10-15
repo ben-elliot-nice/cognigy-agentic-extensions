@@ -1,14 +1,13 @@
 import { createNodeDescriptor, INodeFunctionBaseParams } from "@cognigy/extension-tools";
 import axios from "axios";
-import { ICxoneAuthCache } from "../lib/cxoneAuth";
+import { assertNumericId, callCxone, ICxoneCredentials, REQUEST_TIMEOUT_MS } from "../lib/cxoneAuth";
 
 const SCRIPT_PATH = "/incontactapi/services/v33.0/scripts/start";
 
 export interface IStartScriptParams extends INodeFunctionBaseParams {
 	config: {
 		// Auth
-		cacheStorageType: "context" | "input";
-		cacheKey: string;
+		authConnection: ICxoneCredentials;
 		// Script
 		skillId: string;
 		scriptPath: string;
@@ -27,25 +26,14 @@ export const startScript = createNodeDescriptor({
 	fields: [
 		// --- Auth ---
 		{
-			key: "cacheStorageType",
-			label: "Token Cache Location",
-			type: "select",
-			defaultValue: "context",
+			key: "authConnection",
+			label: "CXone Auth",
+			type: "connection",
 			params: {
-				options: [
-					{ label: "context", value: "context" },
-					{ label: "input", value: "input" }
-				],
+				connectionType: "cxone-auth",
 				required: true
 			},
-			description: "Where to read the auth cache written by the Get Token node"
-		},
-		{
-			key: "cacheKey",
-			label: "Token Cache Key",
-			type: "cognigyText",
-			defaultValue: "cxoneToken",
-			params: { required: true }
+			description: "Authentication is handled automatically and cached per environment, client and user"
 		},
 		// --- Script ---
 		{
@@ -95,7 +83,7 @@ export const startScript = createNodeDescriptor({
 			key: "authSection",
 			label: "Authentication",
 			defaultCollapsed: false,
-			fields: ["cacheStorageType", "cacheKey"]
+			fields: ["authConnection"]
 		},
 		{
 			key: "scriptSection",
@@ -122,8 +110,7 @@ export const startScript = createNodeDescriptor({
 	function: async ({ cognigy, config: rawConfig }: INodeFunctionBaseParams) => {
 		const { api, context, input } = cognigy;
 		const {
-			cacheStorageType,
-			cacheKey,
+			authConnection,
 			skillId,
 			scriptPath,
 			parameters,
@@ -131,53 +118,36 @@ export const startScript = createNodeDescriptor({
 			storageKey
 		} = rawConfig as IStartScriptParams["config"];
 
-		const log = (msg: string) => api.log("debug", `CXone Start Script: ${msg}`);
+		const log = (msg: string) => api.log("info", `CXone Start Script: ${msg}`);
 
-		// Read auth cache written by Get Token node
-		const cacheStore = cacheStorageType === "context" ? context : input;
-		const cache: ICxoneAuthCache = (cacheStore[cacheKey] as ICxoneAuthCache) || {};
+		const data = await callCxone({
+			cognigy,
+			node: "Start Script",
+			creds: authConnection,
+			validate: () => assertNumericId(skillId, "Skill ID"),
+			request: (cache) => {
+				const queryParts: string[] = [
+					`skillId=${skillId.trim()}`,
+					`scriptPath=${encodeURIComponent(scriptPath)}`
+				];
 
-		log(`cache key: ${cacheKey}, storage: ${cacheStorageType}`);
-		log(`cache contents: ${JSON.stringify({ token: cache.token ? "[present]" : "[missing]", apiBaseUrl: cache.apiBaseUrl, tenantId: cache.tenantId })}`);
+				if (parameters && parameters.trim() !== "") {
+					queryParts.push(`Parameters=${encodeURIComponent(parameters)}`);
+				}
 
-		if (!cache.token) {
-			throw new Error("CXone Start Script: no auth token in cache — run Get Token node first");
-		}
-		if (!cache.apiBaseUrl) {
-			throw new Error("CXone Start Script: apiBaseUrl missing from auth cache");
-		}
+				log(`starting script ${scriptPath} on skill ${skillId}`);
 
-		// Build query string — scriptPath and Parameters are URL-encoded
-		const queryParts: string[] = [
-			`skillId=${skillId}`,
-			`scriptPath=${encodeURIComponent(scriptPath)}`
-		];
-
-		if (parameters && parameters.trim() !== "") {
-			queryParts.push(`Parameters=${encodeURIComponent(parameters)}`);
-		}
-
-		const url = `${cache.apiBaseUrl}${SCRIPT_PATH}?${queryParts.join("&")}`;
-
-		log(`skillId: ${skillId}`);
-		log(`scriptPath (raw): ${scriptPath}`);
-		log(`scriptPath (encoded): ${encodeURIComponent(scriptPath)}`);
-		log(`parameters (raw): ${parameters ?? "(none)"}`);
-		log(`parameters (encoded): ${parameters ? encodeURIComponent(parameters) : "(none)"}`);
-		log(`full URL: ${url}`);
-		log(`token (first 20 chars): ${cache.token.substring(0, 20)}...`);
-
-		const response = await axios.post(url, {}, {
-			headers: {
-				Authorization: `Bearer ${cache.token}`,
-				Accept: "application/json"
+				return axios.post(`${cache.apiBaseUrl}${SCRIPT_PATH}?${queryParts.join("&")}`, {}, {
+					timeout: REQUEST_TIMEOUT_MS,
+					headers: {
+						Authorization: `Bearer ${cache.token}`,
+						Accept: "application/json"
+					}
+				});
 			}
 		});
 
-		log(`response status: ${response.status}`);
-		log(`response data: ${JSON.stringify(response.data)}`);
-
-		const result = response.data || {};
+		const result = data || {};
 
 		if (storageType === "context") {
 			context[storageKey] = result;
@@ -186,6 +156,5 @@ export const startScript = createNodeDescriptor({
 			api.addToInput(storageKey, result);
 		}
 
-		log(`response stored in ${storageType}.${storageKey}`);
 	}
 });

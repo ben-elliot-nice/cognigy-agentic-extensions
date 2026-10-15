@@ -42,11 +42,13 @@ No external dependencies — uses Node's built-in `crypto` module. Useful for si
 
 ### CXone
 
-Connects to the NICE CXone platform using OAuth client credentials. Authentication is handled by a dedicated **Get Token** node that caches credentials in `context` or `input`; all other nodes read from that cache.
+Connects to the NICE CXone platform using OAuth client credentials. Every node takes a **CXone Auth** connection and authenticates automatically: the token is cached in `context` (keyed by environment, client ID and username), re-fetched when expired, and refreshed once on a 401. The connection has an optional `environment` field (`default` = cxone.niceincontact.com, `gov` = cxone-gov.niceincontact.com). Limitation: two connections with the same environment, client ID and username share one cache.
+
+Failures are reported in a standard shape written to `input.cxoneError` (`node`, `step`, `message`, `status`, `statusText`, `code`, truncated `response`) and thrown as a plain error. Credentials and tokens are never included. Contact ID and Skill ID must be numeric; anything else is rejected before a request is made.
 
 | Node | What it does |
 |---|---|
-| Get Token | Authenticate with CXone using client credentials; writes token + API base URL + tenant ID to a configurable cache key |
+| Get Token | Optional pre-authentication; copies the auth cache (token, API base URL, tenant ID) to a configurable key for flows that read it directly |
 | Get Chunks | Query the CXone Knowledge Hub retrieval service; returns raw API response and/or a clean `{ title, content, relevance_percent }` array |
 | Send Signal | Send a CXone Signal API call to an active interaction, with up to 9 optional parameters (p1–p9) |
 | Start Script | Launch a CXone Studio script by skill ID and script path, with optional pipe-delimited parameters |

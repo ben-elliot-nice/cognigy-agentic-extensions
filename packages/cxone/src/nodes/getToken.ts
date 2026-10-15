@@ -1,4 +1,4 @@
-import { ensureCxoneAuth, ICxoneAuthCache } from "../lib/cxoneAuth";
+import { authenticate } from "../lib/cxoneAuth";
 import { createNodeDescriptor, INodeFunctionBaseParams } from "@cognigy/extension-tools";
 
 export interface IGetTokenParams extends INodeFunctionBaseParams {
@@ -8,6 +8,7 @@ export interface IGetTokenParams extends INodeFunctionBaseParams {
 			clientSecret: string;
 			cxoneUsername: string;
 			cxonePassword: string;
+			environment?: string;
 		};
 		storageType: "context" | "input";
 		storageKey: string;
@@ -17,7 +18,7 @@ export interface IGetTokenParams extends INodeFunctionBaseParams {
 export const getToken = createNodeDescriptor({
 	type: "getToken",
 	defaultLabel: "Get Token",
-	summary: "Authenticate with CXone and cache the token, tenant ID, and API base URL",
+	summary: "Optional: pre-authenticate with CXone and copy the auth cache to a key. Other CXone nodes authenticate automatically.",
 	tags: ["service"],
 	fields: [
 		{
@@ -74,13 +75,10 @@ export const getToken = createNodeDescriptor({
 		key: "storageKey"
 	},
 	function: async ({ cognigy, config: rawConfig }: INodeFunctionBaseParams) => {
-		const { api, context, input } = cognigy;
+		const { api, context } = cognigy;
 		const { authConnection, storageType, storageKey } = rawConfig as IGetTokenParams["config"];
 
-		const store = storageType === "context" ? context : input;
-		const cache: ICxoneAuthCache = (store[storageKey] as ICxoneAuthCache) || {};
-
-		await ensureCxoneAuth(cache, authConnection, (msg) => api.log("info", `CXone: ${msg}`));
+		const cache = await authenticate(cognigy, "Get Token", authConnection);
 
 		if (storageType === "context") {
 			context[storageKey] = cache;

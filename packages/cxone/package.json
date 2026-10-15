@@ -1,6 +1,6 @@
 {
   "name": "cxone",
-  "version": "1.0.4",
+  "version": "2.0.0",
   "description": "CXone integration nodes for Cognigy.AI — authentication, Signal API, Knowledge Hub, scripts, and rich content",
   "main": "build/module.js",
   "scripts": {
