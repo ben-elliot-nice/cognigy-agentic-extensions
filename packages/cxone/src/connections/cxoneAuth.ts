@@ -8,6 +8,9 @@ import { IConnectionSchema } from "@cognigy/extension-tools";
  *
  * cxoneUsername / cxonePassword — sent in the token request body as the OAuth2
  *                                 password-grant username and password
+ *
+ * environment (optional)    — "default" (cxone.niceincontact.com) or "gov"
+ *                             (cxone-gov.niceincontact.com). Leave blank for default.
  */
 export const cxoneAuth: IConnectionSchema = {
 	type: "cxone-auth",
@@ -16,6 +19,7 @@ export const cxoneAuth: IConnectionSchema = {
 		{ fieldName: "clientId" },
 		{ fieldName: "clientSecret" },
 		{ fieldName: "cxoneUsername" },
-		{ fieldName: "cxonePassword" }
+		{ fieldName: "cxonePassword" },
+		{ fieldName: "environment" }
 	]
 };

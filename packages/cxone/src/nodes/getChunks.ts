@@ -1,6 +1,6 @@
 import { createNodeDescriptor, INodeFunctionBaseParams } from "@cognigy/extension-tools";
 import axios from "axios";
-import { ICxoneAuthCache } from "../lib/cxoneAuth";
+import { callCxone, ICxoneCredentials, REQUEST_TIMEOUT_MS } from "../lib/cxoneAuth";
 
 const RETRIEVAL_PATH = "/eai-knowledge-hub-services/retrieval-service/v1/retrieve";
 
@@ -19,8 +19,7 @@ interface ICleanOutput {
 export interface IGetChunksParams extends INodeFunctionBaseParams {
 	config: {
 		// Auth
-		cacheStorageType: "context" | "input";
-		cacheKey: string;
+		authConnection: ICxoneCredentials;
 		// Query
 		knowledgehubId: string;
 		queryText: string;
@@ -45,25 +44,14 @@ export const getChunks = createNodeDescriptor({
 	fields: [
 		// --- Auth ---
 		{
-			key: "cacheStorageType",
-			label: "Token Cache Location",
-			type: "select",
-			defaultValue: "context",
+			key: "authConnection",
+			label: "CXone Auth",
+			type: "connection",
 			params: {
-				options: [
-					{ label: "context", value: "context" },
-					{ label: "input", value: "input" }
-				],
+				connectionType: "cxone-auth",
 				required: true
 			},
-			description: "Where to read the auth cache written by the Get Token node"
-		},
-		{
-			key: "cacheKey",
-			label: "Token Cache Key",
-			type: "cognigyText",
-			defaultValue: "cxoneToken",
-			params: { required: true }
+			description: "Authentication is handled automatically and cached per environment, client and user"
 		},
 		// --- Query ---
 		{
@@ -158,7 +146,7 @@ export const getChunks = createNodeDescriptor({
 			key: "authSection",
 			label: "Authentication",
 			defaultCollapsed: false,
-			fields: ["cacheStorageType", "cacheKey"]
+			fields: ["authConnection"]
 		},
 		{
 			key: "query",
@@ -195,8 +183,7 @@ export const getChunks = createNodeDescriptor({
 	function: async ({ cognigy, config: rawConfig }: INodeFunctionBaseParams) => {
 		const { api, context, input } = cognigy;
 		const {
-			cacheStorageType,
-			cacheKey,
+			authConnection,
 			knowledgehubId,
 			queryText,
 			numberOfResults,
@@ -211,43 +198,38 @@ export const getChunks = createNodeDescriptor({
 
 		const log = (msg: string) => api.log("info", `CXone Get Chunks: ${msg}`);
 
-		// Read auth cache written by Get Token node
-		const cacheStore = cacheStorageType === "context" ? context : input;
-		const cache: ICxoneAuthCache = (cacheStore[cacheKey] as ICxoneAuthCache) || {};
+		const results: any = await callCxone({
+			cognigy,
+			node: "Get Chunks",
+			creds: authConnection,
+			request: (cache) => {
+				if (!cache.tenantId) {
+					throw new Error("tenantId missing from auth cache");
+				}
 
-		if (!cache.token) {
-			throw new Error("CXone Get Chunks: no auth token in cache — run Get Token node first");
-		}
-		if (!cache.apiBaseUrl) {
-			throw new Error("CXone Get Chunks: apiBaseUrl missing from auth cache");
-		}
-		if (!cache.tenantId) {
-			throw new Error("CXone Get Chunks: tenantId missing from auth cache");
-		}
+				const payload: Record<string, any> = {
+					knowledgehubId,
+					meta: { tenantId: cache.tenantId },
+					query: { queryText },
+					queryConfig: { numberOfResults }
+				};
 
-		// Build and send request
-		const payload: Record<string, any> = {
-			knowledgehubId,
-			meta: { tenantId: cache.tenantId },
-			query: { queryText },
-			queryConfig: { numberOfResults }
-		};
+				if (filter && Object.keys(filter).length > 0) {
+					payload.queryConfig.filter = filter;
+				}
 
-		if (filter && Object.keys(filter).length > 0) {
-			payload.queryConfig.filter = filter;
-		}
+				log(`querying hub ${knowledgehubId}`);
 
-		log(`querying "${queryText}" against hub ${knowledgehubId}`);
-
-		const response = await axios.post(`${cache.apiBaseUrl}${RETRIEVAL_PATH}`, payload, {
-			headers: {
-				Authorization: `Bearer ${cache.token}`,
-				"Content-Type": "application/json",
-				Accept: "application/json"
+				return axios.post(`${cache.apiBaseUrl}${RETRIEVAL_PATH}`, payload, {
+					timeout: REQUEST_TIMEOUT_MS,
+					headers: {
+						Authorization: `Bearer ${cache.token}`,
+						"Content-Type": "application/json",
+						Accept: "application/json"
+					}
+				});
 			}
 		});
-
-		const results = response.data;
 		log("received response");
 
 		// Raw output

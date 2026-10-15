@@ -1,14 +1,13 @@
 import { createNodeDescriptor, INodeFunctionBaseParams } from "@cognigy/extension-tools";
 import axios from "axios";
-import { ICxoneAuthCache } from "../lib/cxoneAuth";
+import { assertNumericId, callCxone, ICxoneCredentials, REQUEST_TIMEOUT_MS } from "../lib/cxoneAuth";
 
 const SIGNAL_PATH = "/incontactapi/services/v33.0/interactions";
 
 export interface ISendSignalParams extends INodeFunctionBaseParams {
 	config: {
 		// Auth
-		cacheStorageType: "context" | "input";
-		cacheKey: string;
+		authConnection: ICxoneCredentials;
 		// Signal
 		contactId: string;
 		p1?: string;
@@ -34,25 +33,14 @@ export const sendSignal = createNodeDescriptor({
 	fields: [
 		// --- Auth ---
 		{
-			key: "cacheStorageType",
-			label: "Token Cache Location",
-			type: "select",
-			defaultValue: "context",
+			key: "authConnection",
+			label: "CXone Auth",
+			type: "connection",
 			params: {
-				options: [
-					{ label: "context", value: "context" },
-					{ label: "input", value: "input" }
-				],
+				connectionType: "cxone-auth",
 				required: true
 			},
-			description: "Where to read the auth cache written by the Get Token node"
-		},
-		{
-			key: "cacheKey",
-			label: "Token Cache Key",
-			type: "cognigyText",
-			defaultValue: "cxoneToken",
-			params: { required: true }
+			description: "Authentication is handled automatically and cached per environment, client and user"
 		},
 		// --- Signal ---
 		{
@@ -143,7 +131,7 @@ export const sendSignal = createNodeDescriptor({
 			key: "authSection",
 			label: "Authentication",
 			defaultCollapsed: false,
-			fields: ["cacheStorageType", "cacheKey"]
+			fields: ["authConnection"]
 		},
 		{
 			key: "signalSection",
@@ -177,8 +165,7 @@ export const sendSignal = createNodeDescriptor({
 	function: async ({ cognigy, config: rawConfig }: INodeFunctionBaseParams) => {
 		const { api, context, input } = cognigy;
 		const {
-			cacheStorageType,
-			cacheKey,
+			authConnection,
 			contactId,
 			p1, p2, p3, p4, p5, p6, p7, p8, p9,
 			storageType,
@@ -187,36 +174,33 @@ export const sendSignal = createNodeDescriptor({
 
 		const log = (msg: string) => api.log("info", `CXone Send Signal: ${msg}`);
 
-		// Read auth cache written by Get Token node
-		const cacheStore = cacheStorageType === "context" ? context : input;
-		const cache: ICxoneAuthCache = (cacheStore[cacheKey] as ICxoneAuthCache) || {};
+		const data = await callCxone({
+			cognigy,
+			node: "Send Signal",
+			creds: authConnection,
+			validate: () => assertNumericId(contactId, "Contact ID"),
+			request: (cache) => {
+				const baseUrl = `${cache.apiBaseUrl}${SIGNAL_PATH}/${contactId.trim()}/signal`;
+				const paramValues = [p1, p2, p3, p4, p5, p6, p7, p8, p9];
+				const queryParts = paramValues
+					.map((v, i) => (v && v.trim() !== "" ? `p${i + 1}=${encodeURIComponent(v)}` : null))
+					.filter(Boolean);
 
-		if (!cache.token) {
-			throw new Error("CXone Send Signal: no auth token in cache — run Get Token node first");
-		}
-		if (!cache.apiBaseUrl) {
-			throw new Error("CXone Send Signal: apiBaseUrl missing from auth cache");
-		}
+				const url = queryParts.length > 0 ? `${baseUrl}?${queryParts.join("&")}` : baseUrl;
 
-		// Build signal URL with optional query parameters
-		const baseUrl = `${cache.apiBaseUrl}${SIGNAL_PATH}/${contactId}/signal`;
-		const paramValues = [p1, p2, p3, p4, p5, p6, p7, p8, p9];
-		const queryParts = paramValues
-			.map((v, i) => (v && v.trim() !== "" ? `p${i + 1}=${encodeURIComponent(v)}` : null))
-			.filter(Boolean);
+				log(`signalling contact ${contactId}`);
 
-		const url = queryParts.length > 0 ? `${baseUrl}?${queryParts.join("&")}` : baseUrl;
-
-		log(`signalling contact ${contactId}`);
-
-		const response = await axios.post(url, {}, {
-			headers: {
-				Authorization: `Bearer ${cache.token}`,
-				Accept: "application/json"
+				return axios.post(url, {}, {
+					timeout: REQUEST_TIMEOUT_MS,
+					headers: {
+						Authorization: `Bearer ${cache.token}`,
+						Accept: "application/json"
+					}
+				});
 			}
 		});
 
-		const result = response.data || {};
+		const result = data || {};
 		log("signal sent");
 
 		if (storageType === "context") {
